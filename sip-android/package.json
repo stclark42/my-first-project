@@ -4,8 +4,9 @@
   "private": true,
   "description": "Native Android build of the Sip hydration tracker (web code lives in ../hydration)",
   "scripts": {
-    "sync": "cap sync android",
-    "build:apk": "cap sync android && cd android && ./gradlew assembleDebug"
+    "prepare:web": "rm -rf www && cp -r ../hydration www && rm -f www/sw.js && cp node_modules/@capacitor/core/dist/capacitor.js www/",
+    "sync": "npm run prepare:web && cap sync android",
+    "build:apk": "npm run sync && cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.2",

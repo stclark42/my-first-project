@@ -10,6 +10,10 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg">
 <link rel="apple-touch-icon" href="icon.svg">
+<script>
+  // Inside the Android app, load Capacitor's core library (copied in by sip-android's build).
+  if (window.Capacitor) document.write('<script src="capacitor.js"><\/script>');
+</script>
 <style>
   :root {
     --bg: #f4f8fc; --card: #ffffff; --text: #10202f; --muted: #5b6b7b;
@@ -182,8 +186,14 @@
   // ---------- native (Android app) ----------
   // When running inside the Capacitor Android app, reminders are scheduled with the
   // phone's own alarm system, so they fire even when Sip is closed.
-  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  const LN = NATIVE ? window.Capacitor.registerPlugin('LocalNotifications') : null;
+  let LN = null;
+  try {
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      const reg = (window.capacitorExports && window.capacitorExports.registerPlugin) || window.Capacitor.registerPlugin;
+      LN = reg ? reg('LocalNotifications') : (window.Capacitor.Plugins || {}).LocalNotifications || null;
+    }
+  } catch { LN = null; }
+  const NATIVE = !!LN; // never let native setup problems break the rest of the app
   let nativePerm = 'prompt';
   let schedTimer = null;
   function scheduleNativeSoon() {

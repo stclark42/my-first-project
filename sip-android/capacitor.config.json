@@ -1,7 +1,7 @@
 {
   "appId": "com.sip.hydration",
   "appName": "Sip",
-  "webDir": "../hydration",
+  "webDir": "www",
   "plugins": {
     "LocalNotifications": {
       "smallIcon": "ic_stat_water",
