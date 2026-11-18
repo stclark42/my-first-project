@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sip</title>
+<meta name="theme-color" content="#0b6bcb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sip">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon.svg">
+<style>
+  :root {
+    --bg: #f4f8fc; --card: #ffffff; --text: #10202f; --muted: #5b6b7b;
+    --accent: #0b6bcb; --accent-soft: #dbeafb; --track: #e3ebf3; --good: #1b8a5a;
+    --border: #dde6ef;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1620; --card: #15212d; --text: #e6eef6; --muted: #93a4b5;
+      --accent: #4ea3f5; --accent-soft: #1b3550; --track: #223242; --good: #4cc38a;
+      --border: #24384a;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom)); }
+  main { max-width: 480px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 8px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 15px; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px; margin: 12px 0; }
+  .ring-wrap { position: relative; width: 210px; height: 210px; margin: 4px auto 8px; }
+  .ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .ring-track { stroke: var(--track); }
+  .ring-fill { stroke: var(--accent); transition: stroke-dashoffset .5s ease; }
+  .ring-fill.done { stroke: var(--good); }
+  .ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring-label .big { font-size: 40px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ring-label .small { color: var(--muted); font-size: 14px; }
+  .status { text-align: center; color: var(--muted); margin: 0; min-height: 1.4em; }
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  button { font: inherit; border: 0; border-radius: 14px; padding: 14px 10px; cursor: pointer;
+    background: var(--accent-soft); color: var(--text); font-weight: 600; min-height: 48px; }
+  button.primary { background: var(--accent); color: #fff; }
+  button.ghost { background: transparent; border: 1px solid var(--border); }
+  button:active { transform: scale(.97); }
+  .row { display: flex; gap: 10px; align-items: center; }
+  .row > * { flex: 1; }
+  .icon-btn { flex: 0 0 auto; padding: 8px 14px; min-height: 40px; font-size: 14px; }
+  label { display: block; font-size: 14px; color: var(--muted); margin-bottom: 4px; }
+  input, select { width: 100%; font: inherit; padding: 12px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); min-height: 48px; }
+  .field { margin-bottom: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  ul.log { list-style: none; padding: 0; margin: 0; }
+  ul.log li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-top: 1px solid var(--border); }
+  ul.log li:first-child { border-top: 0; }
+  ul.log .del { background: none; color: var(--muted); padding: 6px 10px; min-height: 0; font-weight: 400; }
+  .empty { color: var(--muted); margin: 0; }
+  .bars { display: flex; gap: 8px; align-items: flex-end; height: 110px; }
+  .bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .bar .b { width: 100%; background: var(--accent); border-radius: 6px 6px 3px 3px; min-height: 3px; }
+  .bar .b.met { background: var(--good); }
+  .bar span { font-size: 12px; color: var(--muted); }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+  .toggle { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .toggle input { width: 52px; height: 30px; min-height: 0; accent-color: var(--accent); }
+  #banner { position: fixed; left: 16px; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom)); max-width: 480px; margin: 0 auto;
+    background: var(--accent); color: #fff; border-radius: 16px; padding: 14px 16px; display: none;
+    align-items: center; gap: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.25); z-index: 10; }
+  #banner.show { display: flex; }
+  #banner p { flex: 1; margin: 0; font-weight: 600; }
+  #banner button { background: #fff; color: var(--accent); min-height: 40px; padding: 8px 14px; }
+  dialog { border: 0; border-radius: 18px; background: var(--card); color: var(--text); width: min(92vw, 380px); padding: 20px; }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>💧 Sip</h1>
+    <button class="ghost icon-btn" id="undoBtn" disabled>Undo</button>
+  </header>
+
+  <section class="card">
+    <div class="ring-wrap">
+      <svg viewBox="0 0 200 200" aria-hidden="true">
+        <circle class="ring-track" cx="100" cy="100" r="86" fill="none" stroke-width="16"/>
+        <circle class="ring-fill" id="ring" cx="100" cy="100" r="86" fill="none" stroke-width="16" stroke-linecap="round"/>
+      </svg>
+      <div class="ring-label">
+        <div class="big" id="total">0</div>
+        <div class="small" id="goalLabel">of 2000 ml</div>
+      </div>
+    </div>
+    <p class="status" id="status"></p>
+    <div class="quick" id="quick"></div>
+    <div class="row" style="margin-top:10px">
+      <input type="number" id="customAmt" inputmode="numeric" min="1" placeholder="Custom amount">
+      <button class="primary icon-btn" id="customAdd">Add</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Today</h2>
+    <ul class="log" id="log"></ul>
+  </section>
+
+  <section class="card">
+    <h2>Last 7 days</h2>
+    <div class="bars" id="bars"></div>
+  </section>
+
+  <section class="card">
+    <h2>Reminders</h2>
+    <div class="toggle">
+      <span>Remind me to drink</span>
+      <input type="checkbox" id="remOn">
+    </div>
+    <div class="field">
+      <label for="remEvery">Every</label>
+      <select id="remEvery">
+        <option value="30">30 minutes</option>
+        <option value="45">45 minutes</option>
+        <option value="60">1 hour</option>
+        <option value="90">1.5 hours</option>
+        <option value="120">2 hours</option>
+      </select>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="remStart">From</label><input type="time" id="remStart"></div>
+      <div class="field"><label for="remEnd">Until</label><input type="time" id="remEnd"></div>
+    </div>
+    <p class="note" id="remInfo"></p>
+    <button class="ghost" id="icsBtn" style="width:100%;margin-top:12px">📅 Add reminders to my phone's calendar</button>
+    <p class="note">Most reliable option: your phone's calendar will alert you even when this app is closed.</p>
+  </section>
+
+  <section class="card">
+    <h2>Settings</h2>
+    <div class="grid2">
+      <div class="field">
+        <label for="unit">Unit</label>
+        <select id="unit"><option value="ml">ml</option><option value="oz">oz</option></select>
+      </div>
+      <div class="field">
+        <label for="goal">Daily goal</label>
+        <input type="number" id="goal" inputmode="numeric" min="1">
+      </div>
+    </div>
+    <button class="ghost" id="resetBtn" style="width:100%">Clear today</button>
+  </section>
+</main>
+
+<div id="banner" role="alert"><p>💧 Time for a glass of water!</p><button id="bannerAdd">+ Drink</button></div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const KEY = 'sip-data-v1';
+  const ML_PER_OZ = 29.5735;
+
+  // ---------- storage ----------
+  const defaults = {
+    unit: 'ml', goalMl: 2000,
+    reminders: { on: false, every: 60, start: '08:00', end: '21:00' },
+    days: {},          // { 'YYYY-MM-DD': [{t: timestamp, ml: number}] }
+    lastNotified: 0,
+  };
+  let state;
+  try { state = Object.assign({}, defaults, JSON.parse(localStorage.getItem(KEY)) || {}); }
+  catch { state = { ...defaults }; }
+  state.reminders = Object.assign({}, defaults.reminders, state.reminders);
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+
+  // ---------- helpers ----------
+  const dayKey = (d = new Date()) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const today = () => (state.days[dayKey()] ||= []);
+  const toUnit = (ml) => state.unit === 'oz' ? ml / ML_PER_OZ : ml;
+  const fromUnit = (v) => state.unit === 'oz' ? v * ML_PER_OZ : v;
+  const fmt = (ml) => Math.round(toUnit(ml)).toLocaleString();
+  const sum = (arr) => arr.reduce((a, e) => a + e.ml, 0);
+  const mins = (hhmm) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; };
+  const timeStr = (ts) => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const quickAmounts = () => state.unit === 'oz' ? [8, 12, 16] : [250, 350, 500];
+
+  // ---------- actions ----------
+  function add(ml) {
+    if (!(ml > 0)) return;
+    today().push({ t: Date.now(), ml });
+    state.lastNotified = Date.now(); // drinking resets the reminder clock
+    save(); render(); hideBanner();
+    if (navigator.vibrate) navigator.vibrate(15);
+  }
+  function remove(i) { today().splice(i, 1); save(); render(); }
+
+  // ---------- render ----------
+  const C = 2 * Math.PI * 86;
+  function render() {
+    const total = sum(today());
+    const pct = Math.min(total / state.goalMl, 1);
+    const ring = $('ring');
+    ring.style.strokeDasharray = C;
+    ring.style.strokeDashoffset = C * (1 - pct);
+    ring.classList.toggle('done', pct >= 1);
+    $('total').textContent = fmt(total);
+    $('goalLabel').textContent = `of ${fmt(state.goalMl)} ${state.unit}`;
+    const left = state.goalMl - total;
+    $('status').textContent = left <= 0 ? '🎉 Goal reached — nice work!'
+      : `${fmt(left)} ${state.unit} to go · ${Math.round(pct * 100)}%`;
+
+    $('quick').innerHTML = quickAmounts().map((a) => `<button data-amt="${a}">+${a} ${state.unit}</button>`).join('');
+    $('customAmt').placeholder = `Custom (${state.unit})`;
+
+    const log = today();
+    $('log').innerHTML = log.length
+      ? log.map((e, i) => ({ e, i })).reverse().map(({ e, i }) =>
+          `<li><span>${timeStr(e.t)}</span><span><strong>${fmt(e.ml)} ${state.unit}</strong>
+           <button class="del" data-del="${i}" aria-label="Remove">✕</button></span></li>`).join('')
+      : '<li class="empty">Nothing yet — tap a button above when you drink.</li>';
+    $('undoBtn').disabled = !log.length;
+
+    const days = [];
+    for (let i = 6; i >= 0; i--) { const d = new Date(); d.setDate(d.getDate() - i); days.push(d); }
+    const totals = days.map((d) => sum(state.days[dayKey(d)] || []));
+    const max = Math.max(state.goalMl, ...totals);
+    $('bars').innerHTML = days.map((d, i) =>
+      `<div class="bar" title="${fmt(totals[i])} ${state.unit}">
+         <div class="b ${totals[i] >= state.goalMl ? 'met' : ''}" style="height:${(totals[i] / max) * 85}%"></div>
+         <span>${i === 6 ? 'Today' : d.toLocaleDateString([], { weekday: 'short' })}</span></div>`).join('');
+
+    $('unit').value = state.unit;
+    $('goal').value = Math.round(toUnit(state.goalMl));
+    const r = state.reminders;
+    $('remOn').checked = r.on; $('remEvery').value = r.every; $('remStart').value = r.start; $('remEnd').value = r.end;
+    renderRemInfo();
+  }
+
+  function renderRemInfo() {
+    const r = state.reminders;
+    let msg = '';
+    if (r.on) {
+      const perm = 'Notification' in window ? Notification.permission : 'unsupported';
+      msg = perm === 'granted'
+        ? 'On. You\'ll get a notification while Sip is open or recently used.'
+        : 'On. You\'ll see an in-app alert while Sip is open. Allow notifications for pop-ups.';
+    }
+    $('remInfo').textContent = msg;
+  }
+
+  // ---------- reminders ----------
+  async function notify() {
+    const body = `${fmt(Math.max(state.goalMl - sum(today()), 0))} ${state.unit} left today.`;
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try {
+        const reg = await navigator.serviceWorker?.getRegistration();
+        if (reg) await reg.showNotification('💧 Time to drink water', { body, icon: 'icon.svg', tag: 'sip', renotify: true });
+        else new Notification('💧 Time to drink water', { body, icon: 'icon.svg' });
+      } catch {}
+    }
+    showBanner();
+    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+  }
+
+  function checkReminder() {
+    const r = state.reminders;
+    if (!r.on) return;
+    const now = new Date();
+    const m = now.getHours() * 60 + now.getMinutes();
+    if (m < mins(r.start) || m > mins(r.end)) return;
+    if (sum(today()) >= state.goalMl) return;
+    // Reference point: last drink, last reminder, or today's start time (whichever is latest)
+    const startToday = new Date(now); startToday.setHours(...r.start.split(':').map(Number), 0, 0);
+    const ref = Math.max(state.lastNotified || 0, startToday.getTime() - r.every * 60000);
+    if (Date.now() - ref >= r.every * 60000) {
+      state.lastNotified = Date.now(); save(); notify();
+    }
+  }
+
+  const showBanner = () => $('banner').classList.add('show');
+  const hideBanner = () => $('banner').classList.remove('show');
+
+  // ---------- calendar export (.ics) ----------
+  function buildICS() {
+    const r = state.reminders;
+    const pad = (n) => String(n).padStart(2, '0');
+    const d = new Date();
+    const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Sip//Hydration//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Water reminders'];
+    let n = 0;
+    for (let m = mins(r.start); m <= mins(r.end); m += r.every) {
+      const hh = pad(Math.floor(m / 60)), mm = pad(m % 60);
+      const endM = m + 5;
+      lines.push('BEGIN:VEVENT',
+        `UID:sip-${ymd}-${hh}${mm}-${n++}@sip.local`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART:${ymd}T${hh}${mm}00`,
+        `DTEND:${ymd}T${pad(Math.floor(endM / 60) % 24)}${pad(endM % 60)}00`,
+        'RRULE:FREQ=DAILY',
+        'SUMMARY:💧 Drink a glass of water',
+        'TRANSP:TRANSPARENT',
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Time to drink water', 'TRIGGER:PT0M', 'END:VALARM',
+        'END:VEVENT');
+    }
+    lines.push('END:VCALENDAR');
+    return { text: lines.join('\r\n'), count: n };
+  }
+
+  $('icsBtn').addEventListener('click', () => {
+    const { text, count } = buildICS();
+    const blob = new Blob([text], { type: 'text/calendar' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'water-reminders.ics';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    $('remInfo').textContent = `Created ${count} daily reminders (${state.reminders.start}–${state.reminders.end}). Open the file to add them to your calendar.`;
+  });
+
+  // ---------- events ----------
+  $('quick').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-amt]'); if (b) add(fromUnit(Number(b.dataset.amt)));
+  });
+  $('customAdd').addEventListener('click', () => {
+    const v = Number($('customAmt').value); if (v > 0) { add(fromUnit(v)); $('customAmt').value = ''; }
+  });
+  $('log').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del]'); if (b) remove(Number(b.dataset.del));
+  });
+  $('undoBtn').addEventListener('click', () => { const l = today(); if (l.length) remove(l.length - 1); });
+  $('bannerAdd').addEventListener('click', () => add(fromUnit(quickAmounts()[0])));
+  $('banner').addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') hideBanner(); });
+  $('unit').addEventListener('change', (e) => { state.unit = e.target.value; save(); render(); });
+  $('goal').addEventListener('change', (e) => {
+    const v = Number(e.target.value); if (v > 0) { state.goalMl = fromUnit(v); save(); } render();
+  });
+  $('resetBtn').addEventListener('click', () => {
+    if (confirm('Clear everything you logged today?')) { state.days[dayKey()] = []; save(); render(); }
+  });
+
+  $('remOn').addEventListener('change', async (e) => {
+    state.reminders.on = e.target.checked;
+    if (e.target.checked) {
+      state.lastNotified = Date.now();
+      if ('Notification' in window && Notification.permission === 'default') {
+        try { await Notification.requestPermission(); } catch {}
+      }
+    }
+    save(); renderRemInfo();
+  });
+  $('remEvery').addEventListener('change', (e) => { state.reminders.every = Number(e.target.value); save(); });
+  $('remStart').addEventListener('change', (e) => { if (e.target.value) state.reminders.start = e.target.value; save(); });
+  $('remEnd').addEventListener('change', (e) => { if (e.target.value) state.reminders.end = e.target.value; save(); });
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { render(); checkReminder(); } });
+
+  // Re-render at midnight-ish and check reminders every 30s
+  let lastDay = dayKey();
+  setInterval(() => {
+    if (dayKey() !== lastDay) { lastDay = dayKey(); render(); }
+    checkReminder();
+  }, 30000);
+
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+
+  render();
+  checkReminder();
+})();
+</script>
+</body>
+</html>
