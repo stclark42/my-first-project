@@ -1,0 +1,18 @@
+{
+  "name": "sip-android",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Native Android build of the Sip hydration tracker (web code lives in ../hydration)",
+  "scripts": {
+    "sync": "cap sync android",
+    "build:apk": "cap sync android && cd android && ./gradlew assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/local-notifications": "^8.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2"
+  }
+}

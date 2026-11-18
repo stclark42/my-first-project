@@ -1,0 +1,11 @@
+{
+  "appId": "com.sip.hydration",
+  "appName": "Sip",
+  "webDir": "../hydration",
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_water",
+      "iconColor": "#0B6BCB"
+    }
+  }
+}

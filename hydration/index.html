@@ -26,7 +26,8 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  body { padding: env(safe-area-inset-top) 16px calc(24px + env(safe-area-inset-bottom)); }
+  body { padding: max(env(safe-area-inset-top), var(--safe-area-inset-top, 0px)) 16px
+    calc(24px + max(env(safe-area-inset-bottom), var(--safe-area-inset-bottom, 0px))); }
   main { max-width: 480px; margin: 0 auto; }
   header { display: flex; justify-content: space-between; align-items: center; padding: 16px 0 8px; }
   h1 { font-size: 22px; margin: 0; }
@@ -135,8 +136,10 @@
       <div class="field"><label for="remEnd">Until</label><input type="time" id="remEnd"></div>
     </div>
     <p class="note" id="remInfo"></p>
-    <button class="ghost" id="icsBtn" style="width:100%;margin-top:12px">📅 Add reminders to my phone's calendar</button>
-    <p class="note">Most reliable option: your phone's calendar will alert you even when this app is closed.</p>
+    <div id="icsBox">
+      <button class="ghost" id="icsBtn" style="width:100%;margin-top:12px">📅 Add reminders to my phone's calendar</button>
+      <p class="note">Most reliable option: your phone's calendar will alert you even when this app is closed.</p>
+    </div>
   </section>
 
   <section class="card">
@@ -174,7 +177,64 @@
   try { state = Object.assign({}, defaults, JSON.parse(localStorage.getItem(KEY)) || {}); }
   catch { state = { ...defaults }; }
   state.reminders = Object.assign({}, defaults.reminders, state.reminders);
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} scheduleNativeSoon(); };
+
+  // ---------- native (Android app) ----------
+  // When running inside the Capacitor Android app, reminders are scheduled with the
+  // phone's own alarm system, so they fire even when Sip is closed.
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const LN = NATIVE ? window.Capacitor.registerPlugin('LocalNotifications') : null;
+  let nativePerm = 'prompt';
+  let schedTimer = null;
+  function scheduleNativeSoon() {
+    if (!NATIVE) return;
+    clearTimeout(schedTimer);
+    schedTimer = setTimeout(() => scheduleNative().catch(() => {}), 400);
+  }
+  async function scheduleNative() {
+    const pending = await LN.getPending();
+    if (pending.notifications.length) {
+      await LN.cancel({ notifications: pending.notifications.map((n) => ({ id: n.id })) });
+    }
+    const r = state.reminders;
+    if (!r.on || nativePerm !== 'granted') return;
+    const now = Date.now();
+    const todayLog = today();
+    const lastDrink = todayLog.length ? todayLog[todayLog.length - 1].t : 0;
+    const goalMet = sum(todayLog) >= state.goalMl;
+    const out = [];
+    for (let d = 0; d < 7; d++) {                      // schedule a week ahead
+      const day = new Date(); day.setDate(day.getDate() + d);
+      for (let m = mins(r.start); m <= mins(r.end); m += r.every) {
+        const at = new Date(day); at.setHours(Math.floor(m / 60), m % 60, 0, 0);
+        const t = at.getTime();
+        if (t <= now + 30000) continue;
+        if (d === 0 && (goalMet || t < lastDrink + r.every * 60000)) continue; // just drank / goal met
+        out.push({
+          id: out.length + 1,
+          title: '💧 Time to drink water',
+          body: d === 0 ? `${fmt(Math.max(state.goalMl - sum(todayLog), 0))} ${state.unit} left today.` : 'Have a glass of water.',
+          schedule: { at, allowWhileIdle: true },
+          actionTypeId: 'SIP_DRINK',
+          smallIcon: 'ic_stat_water',
+        });
+      }
+    }
+    if (out.length) await LN.schedule({ notifications: out });
+  }
+  async function initNative() {
+    if (!NATIVE) return;
+    try {
+      await LN.registerActionTypes({ types: [{ id: 'SIP_DRINK', actions: [{ id: 'drink', title: `+${quickAmounts()[0]} ${state.unit}` }] }] });
+      await LN.addListener('localNotificationActionPerformed', (e) => {
+        if (e.actionId === 'drink') add(fromUnit(quickAmounts()[0]));
+      });
+      nativePerm = (await LN.checkPermissions()).display;
+      if (state.reminders.on && nativePerm !== 'granted') nativePerm = (await LN.requestPermissions()).display;
+    } catch {}
+    renderRemInfo();
+    scheduleNativeSoon();
+  }
 
   // ---------- helpers ----------
   const dayKey = (d = new Date()) =>
@@ -243,7 +303,11 @@
   function renderRemInfo() {
     const r = state.reminders;
     let msg = '';
-    if (r.on) {
+    if (r.on && NATIVE) {
+      msg = nativePerm === 'granted'
+        ? 'On. Reminders arrive even when Sip is closed, and pause once you hit your goal.'
+        : 'Notifications are blocked. Allow them for Sip in your phone\'s Settings → Apps → Sip → Notifications.';
+    } else if (r.on) {
       const perm = 'Notification' in window ? Notification.permission : 'unsupported';
       msg = perm === 'granted'
         ? 'On. You\'ll get a notification while Sip is open or recently used.'
@@ -268,7 +332,7 @@
 
   function checkReminder() {
     const r = state.reminders;
-    if (!r.on) return;
+    if (!r.on || NATIVE) return; // the native app uses scheduled system notifications instead
     const now = new Date();
     const m = now.getHours() * 60 + now.getMinutes();
     if (m < mins(r.start) || m > mins(r.end)) return;
@@ -347,7 +411,9 @@
     state.reminders.on = e.target.checked;
     if (e.target.checked) {
       state.lastNotified = Date.now();
-      if ('Notification' in window && Notification.permission === 'default') {
+      if (NATIVE) {
+        try { nativePerm = (await LN.requestPermissions()).display; } catch {}
+      } else if ('Notification' in window && Notification.permission === 'default') {
         try { await Notification.requestPermission(); } catch {}
       }
     }
@@ -366,12 +432,14 @@
     checkReminder();
   }, 30000);
 
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  if (!NATIVE && 'serviceWorker' in navigator && location.protocol !== 'file:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
+  if (NATIVE) $('icsBox').hidden = true;
 
   render();
   checkReminder();
+  initNative();
 })();
 </script>
 </body>
